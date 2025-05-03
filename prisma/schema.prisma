@@ -1,0 +1,75 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Voter {
+  id           String        @id @default(uuid())
+  fullName     String
+  photoUrl     String
+  universityId String        @unique
+  email        String        @unique
+  course       String
+  phoneNumber  String
+  dateOfBirth  DateTime
+
+  // ← child tables handle the cascade
+  verification Verification?
+  votes        Vote[]
+}
+
+model Verification {
+  id        String   @id @default(uuid())
+  emailCode String
+  phoneCode String
+  verified  Boolean  @default(false)
+
+  voterId   String   @unique
+  voter     Voter    @relation(fields: [voterId], references: [id], onDelete: Cascade)
+}
+
+model Position {
+  id         String      @id @default(uuid())
+  title      String
+  candidates Candidate[]
+}
+
+model Candidate {
+  id          String    @id @default(uuid())
+  name        String
+  photoUrl    String
+  party       String?
+  positionId  String
+  position    Position  @relation(fields: [positionId], references: [id])
+  votes       Vote[]
+}
+
+model Vote {
+  id          String    @id @default(uuid())
+  voter       Voter     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  voterId     String
+
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+
+  timestamp   DateTime  @default(now())
+  @@unique([voterId, candidateId])
+}
+
+model Admin {
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+}
+
+model PartyRep {
+  id    String @id @default(uuid())
+  email String @unique
+}
+
