@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { prisma }      from '@/lib/prisma';
-import jwt             from 'jsonwebtoken';
+import { NextResponse, NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 // PATCH: update name, party, position (by title), photoUrl
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
-) {
+): Promise<NextResponse> {
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,16 +33,15 @@ export async function PATCH(
 
   const data: any = {};
   if (body.photoUrl) data.photoUrl = body.photoUrl;
-  if (body.name)     data.name     = body.name;
+  if (body.name) data.name = body.name;
   if (body.party !== undefined) data.party = body.party;
 
   // If updating position by title, upsert or connect
   if (body.position) {
-    // find or create a Position record
     const pos = await prisma.position.upsert({
-      where:  { title: body.position },
+      where: { title: body.position },
       create: { title: body.position },
-      update: {}
+      update: {},
     });
     data.position = { connect: { id: pos.id } };
   }
@@ -59,9 +58,9 @@ export async function PATCH(
     return NextResponse.json({
       message: 'Candidate updated.',
       candidate: {
-        id:       updated.id,
-        name:     updated.name,
-        party:    updated.party,
+        id: updated.id,
+        name: updated.name,
+        party: updated.party,
         position: body.position ?? undefined,
         photoUrl: updated.photoUrl,
       },
@@ -74,9 +73,9 @@ export async function PATCH(
 
 // DELETE: remove a candidate
 export async function DELETE(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
-) {
+): Promise<NextResponse> {
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
