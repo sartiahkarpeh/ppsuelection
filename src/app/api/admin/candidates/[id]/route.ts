@@ -7,8 +7,9 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 // PATCH: update name, party, position (by title), photoUrl
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse> {
+  context
+) {
+  const { params } = context;
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -18,13 +19,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
-  let body: {
-    photoUrl?: string;
-    name?: string;
-    party?: string | null;
-    position?: string;
-  };
-
+  let body;
   try {
     body = await req.json();
   } catch {
@@ -36,7 +31,6 @@ export async function PATCH(
   if (body.name) data.name = body.name;
   if (body.party !== undefined) data.party = body.party;
 
-  // If updating position by title, upsert or connect
   if (body.position) {
     const pos = await prisma.position.upsert({
       where: { title: body.position },
@@ -74,8 +68,9 @@ export async function PATCH(
 // DELETE: remove a candidate
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse> {
+  context
+) {
+  const { params } = context;
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
