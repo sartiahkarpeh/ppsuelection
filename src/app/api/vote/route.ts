@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 // Ensure this is loaded correctly and is IDENTICAL to the one used in /api/login
 const JWT_SECRET = process.env.JWT_SECRET!;
 
+export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   // 1) Parse & validate the incoming payload
   // --- Expects { selections: object } ---

@@ -13,7 +13,7 @@ const POSITION_PRIORITY = [
   'Chaplain',
   'Chair',
 ]
-
+export const dynamic = 'force-dynamic';
 export async function GET() {
   // 1) load everything
   const all = await prisma.candidate.findMany({

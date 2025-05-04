@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-
+export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const {

@@ -5,6 +5,7 @@ import jwt             from 'jsonwebtoken'
 
 const SECRET = process.env.PARTY_JWT_SECRET!
 
+export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   const { email } = await request.json()
   if (!email) {

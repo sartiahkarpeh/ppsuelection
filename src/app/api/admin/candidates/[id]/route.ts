@@ -1,19 +1,20 @@
+// src/app/api/admin/candidates/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers'; // <--- 1. ADD THIS IMPORT
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 // PATCH: update name, party, position (by title), photoUrl
-// Apply the same fix here for consistency!
 export async function PATCH(
   req: Request,
-  context: { params: { id: string } } // Corrected type for the second argument
+  context: { params: { id: string } }
 ): Promise<NextResponse> {
-  const { id } = context.params; // Destructure id from context.params
+  const { id } = context.params;
 
   // auth guard
-  const token = req.cookies.get('admin_token');
+  const token = cookies().get('admin_token'); // <--- 2. CHANGE THIS LINE (use cookies())
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     jwt.verify(token.value, JWT_SECRET);
@@ -36,6 +37,8 @@ export async function PATCH(
   if (body.position) {
     const pos = await prisma.position.upsert({
       where: { title: body.position },
+      // Assuming title is unique now, otherwise this upsert needs adjustment
+      // If title is NOT unique, use findFirst+create pattern here too
       create: { title: body.position },
       update: {},
     });
@@ -48,8 +51,11 @@ export async function PATCH(
 
   try {
     const updated = await prisma.candidate.update({
-      where: { id: id }, // Use the destructured id
+      where: { id: id },
       data,
+      include: { // Include position to get the title back easily
+        position: { select: { title: true } }
+      }
     });
     return NextResponse.json({
       message: 'Candidate updated.',
@@ -57,26 +63,26 @@ export async function PATCH(
         id: updated.id,
         name: updated.name,
         party: updated.party,
-        position: body.position ?? undefined,
+        position: updated.position.title, // Get title from included relation
         photoUrl: updated.photoUrl,
       },
     });
   } catch (e) {
-    console.error(e);
+    console.error("Update candidate error:", e);
     return NextResponse.json({ error: 'Failed to update candidate.' }, { status: 500 });
   }
 }
 
-
 // DELETE: remove a candidate
+
 export async function DELETE(
   req: Request,
-  context: { params: { id: string } } // Corrected type for the second argument
+  context: { params: { id: string } }
 ): Promise<NextResponse> {
-  const { id } = context.params; // Destructure id from context.params
+  const { id } = context.params;
 
   // auth guard
-  const token = req.cookies.get('admin_token');
+  const token = cookies().get('admin_token'); // <--- 3. CHANGE THIS LINE TOO (use cookies())
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     jwt.verify(token.value, JWT_SECRET);
@@ -85,10 +91,10 @@ export async function DELETE(
   }
 
   try {
-    await prisma.candidate.delete({ where: { id: id } }); // Use the destructured id
+    await prisma.candidate.delete({ where: { id: id } });
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error(e);
+    console.error("Delete candidate error:", e);
     return NextResponse.json({ error: 'Failed to delete candidate.' }, { status: 500 });
   }
 }

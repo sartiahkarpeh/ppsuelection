@@ -1,4 +1,5 @@
 // src/app/api/vote/me/route.ts
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server'
 import { prisma }      from '@/lib/prisma'
 import jwt             from 'jsonwebtoken'
@@ -6,7 +7,7 @@ import jwt             from 'jsonwebtoken'
 const JWT_SECRET = process.env.JWT_SECRET!
 
 export async function GET(req: Request) {
-  const token = req.cookies.get('token')?.value
+const token = cookies().get('token')?.value
   if (!token) {
     return NextResponse.json({ voted: false })
   }
@@ -18,10 +19,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ voted: false })
   }
 
-  const vote = await prisma.vote.findUnique({
-    where: { voterId: payload.voterId },
-    include: { candidate: true }
-  })
+  // Correct:
+const vote = await prisma.vote.findFirst({ // Use findFirst here
+  where: { voterId: payload.voterId },
+  include: { candidate: true } // Keep include if you need candidate info
+});
   if (!vote) {
     return NextResponse.json({ voted: false })
   }

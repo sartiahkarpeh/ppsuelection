@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { prisma }      from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic';
 export async function GET() {
   // Count votes per candidate, now including photoUrl & position
   const counts = await prisma.candidate.findMany({

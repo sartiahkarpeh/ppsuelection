@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma }      from '@/lib/prisma'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
+export const dynamic = 'force-dynamic';
 export async function GET() {
   // 1) Fetch all verified voters
   const voters = await prisma.voter.findMany({

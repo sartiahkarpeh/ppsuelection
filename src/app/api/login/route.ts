@@ -5,6 +5,7 @@ import jwt               from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
+export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   const { voterId, dateOfBirth } = await request.json();
 

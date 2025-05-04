@@ -1,11 +1,10 @@
 // src/app/api/admin/candidates/route.ts
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-/**
- * GET /api/admin/candidates
- * Fetch all candidates (with position title) in alphabetical order
- */
+// GET function remains the same...
+
+export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const candidates = await prisma.candidate.findMany({
@@ -15,7 +14,7 @@ export async function GET() {
         },
       },
       orderBy: { name: 'asc' },
-    })
+    });
 
     // Flatten position.title into top-level
     const data = candidates.map((c) => ({
@@ -24,60 +23,46 @@ export async function GET() {
       party:    c.party,
       position: c.position.title,
       photoUrl: c.photoUrl,
-    }))
+    }));
 
-    return NextResponse.json(data)
+    return NextResponse.json(data);
   } catch (e) {
-    console.error('Fetch candidates error:', e)
+    console.error('Fetch candidates error:', e);
     return NextResponse.json(
       { error: 'Failed to fetch candidates.' },
       { status: 500 }
-    )
+    );
   }
 }
 
-/**
- * POST /api/admin/candidates
- * Add a new candidate (creates position if missing)
- */
+
+// POST function with the fix applied
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null)
+  const body = await req.json().catch(() => null);
   if (!body || !body.name || !body.position) {
-    return NextResponse.json(
-      { error: 'Missing name or position.' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Missing name or position.' }, { status: 400 });
   }
-  const { name, party, position } = body
+  const { name, party, position } = body;
 
   try {
-    // find existing position by title, or create if not found
-    let pos = await prisma.position.findFirst({
-      where: { title: position },
-    })
+    // find or create the position by title
+    // CHANGE: Use findFirst instead of findUnique
+    let pos = await prisma.position.findFirst({ where: { title: position } });
     if (!pos) {
-      pos = await prisma.position.create({
-        data: { title: position },
-      })
+      pos = await prisma.position.create({ data: { title: position } });
     }
-
-    // create the candidate
+    // create candidate
     const cand = await prisma.candidate.create({
       data: {
         name,
         party,
-        positionId: pos.id,
-        photoUrl: '', // start blank
+        positionId: pos.id, // Use the id from the found or created position
+        photoUrl: '',      // start blank
       },
-    })
-
-    return NextResponse.json(cand, { status: 201 })
+    });
+    return NextResponse.json(cand, { status: 201 });
   } catch (e: any) {
-    console.error('Add candidate error:', e)
-    return NextResponse.json(
-      { error: 'Failed to add candidate.' },
-      { status: 500 }
-    )
+    console.error('Add candidate error:', e);
+    return NextResponse.json({ error: 'Failed to add candidate.' }, { status: 500 });
   }
 }
-
