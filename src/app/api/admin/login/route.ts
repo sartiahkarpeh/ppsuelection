@@ -3,30 +3,77 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET!; // Potential Issue 1: Env Var missing at runtime?
+
+export const dynamic = 'force-dynamic'; // Good, ensures it's dynamic
 
 export async function POST(req: Request) {
-  const { email, password } = await req.json();
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Missing email or password.' }, { status: 400 });
-  }
+  // --- Add top-level try/catch for better logging ---
+  try {
+    console.log('Admin login request received'); // Log entry point
 
-  const admin = await prisma.admin.findUnique({ where: { email } });
-  if (!admin || !(await bcrypt.compare(password, admin.password))) {
-    return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
-  }
+    const { email, password } = await req.json();
+    if (!email || !password) {
+      console.log('Admin login failed: Missing email or password');
+      return NextResponse.json({ error: 'Missing email or password.' }, { status: 400 });
+    }
+    console.log(`Attempting login for email: ${email}`);
 
-  const token = jwt.sign({ adminId: admin.id }, JWT_SECRET, { expiresIn: '8h' });
-  const res = NextResponse.json({ message: 'Login successful' });
-  res.cookies.set({
-    name:     'admin_token',
-    value:    token,
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',    // use 'lax' for localhost
-    path:     '/',
-    maxAge:   8 * 60 * 60,
-  });
-  return res;
+    // Potential Issue 2: Is Admin.email unique in schema? findUnique requires it.
+    console.log('Finding admin user...');
+    const admin = await prisma.admin.findUnique({ where: { email } });
+    console.log('Admin lookup complete. Found:', !!admin);
+
+    // Potential Issue 3: bcrypt.compare might fail if admin.password is not a valid hash
+    let passwordMatch = false;
+    if (admin && admin.password) {
+         console.log('Comparing passwords...');
+         passwordMatch = await bcrypt.compare(password, admin.password);
+         console.log('Password comparison complete. Match:', passwordMatch);
+    } else if (admin) {
+         console.log('Admin found but no password field exists or is null!');
+    }
+
+    if (!admin || !passwordMatch) {
+      console.log('Admin login failed: Invalid credentials');
+      return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
+    }
+
+    console.log('Credentials verified. Signing JWT...');
+    // Potential Issue 1 (again): JWT_SECRET needed here
+    const token = jwt.sign({ adminId: admin.id }, JWT_SECRET, { expiresIn: '8h' });
+    console.log('JWT signed successfully.');
+
+    const res = NextResponse.json({ message: 'Login successful' });
+
+    console.log('Setting admin_token cookie...');
+    res.cookies.set({
+      name:     'admin_token',
+      value:    token,
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path:     '/',
+      maxAge:   8 * 60 * 60, // 8 hours in seconds
+    });
+    console.log('Cookie set. Returning success response.');
+
+    return res;
+
+  } catch (error: any) {
+    // --- Catch ALL errors and log them ---
+    console.error('!!! Critical error in /api/admin/login:', error);
+    // Log specific details if available
+    if (error.message) {
+         console.error('Error Message:', error.message);
+    }
+    if (error.stack) {
+         console.error('Error Stack:', error.stack);
+    }
+    // Return a generic 500 error response
+    return NextResponse.json(
+         { error: 'An internal server error occurred.' },
+         { status: 500 }
+    );
+  }
 }
-

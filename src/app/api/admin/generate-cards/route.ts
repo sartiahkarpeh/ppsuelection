@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
   auth:   { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
 });
 
+export const dynamic = 'force-dynamic';
 export async function POST() {
   // 1) Fetch all verified voters
   const voters = await prisma.voter.findMany({
