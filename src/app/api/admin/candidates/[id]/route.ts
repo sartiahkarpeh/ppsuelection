@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 
@@ -6,10 +6,9 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 
 // PATCH: update name, party, position (by title), photoUrl
 export async function PATCH(
-  req: NextRequest,
-  context
-) {
-  const { params } = context;
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<NextResponse> {
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -67,10 +66,9 @@ export async function PATCH(
 
 // DELETE: remove a candidate
 export async function DELETE(
-  req: NextRequest,
-  context
-) {
-  const { params } = context;
+  req: Request,
+  { params }: { params: { id: string } }
+): Promise<NextResponse> {
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
