@@ -5,10 +5,13 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 // PATCH: update name, party, position (by title), photoUrl
+// Apply the same fix here for consistency!
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } } // Corrected type for the second argument
 ): Promise<NextResponse> {
+  const { id } = context.params; // Destructure id from context.params
+
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -45,7 +48,7 @@ export async function PATCH(
 
   try {
     const updated = await prisma.candidate.update({
-      where: { id: params.id },
+      where: { id: id }, // Use the destructured id
       data,
     });
     return NextResponse.json({
@@ -64,11 +67,14 @@ export async function PATCH(
   }
 }
 
+
 // DELETE: remove a candidate
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } } // Corrected type for the second argument
 ): Promise<NextResponse> {
+  const { id } = context.params; // Destructure id from context.params
+
   // auth guard
   const token = req.cookies.get('admin_token');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -79,11 +85,10 @@ export async function DELETE(
   }
 
   try {
-    await prisma.candidate.delete({ where: { id: params.id } });
+    await prisma.candidate.delete({ where: { id: id } }); // Use the destructured id
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Failed to delete candidate.' }, { status: 500 });
   }
 }
-
