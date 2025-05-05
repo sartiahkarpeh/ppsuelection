@@ -41,9 +41,9 @@ export default function PartyDashboardPage() {
 
     const now = new Date();
     const start = new Date(now);
-    start.setHours(23, 45, 0, 0);
+    start.setHours(10, 13, 0, 0);
     const end = new Date(now);
-    end.setHours(23, 55, 0, 0);
+    end.setHours(10, 55, 0, 0);
 
     function updateTimer() {
       const n = new Date();

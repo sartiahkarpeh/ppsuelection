@@ -48,8 +48,8 @@ export default function VotePage() {
   useEffect(() => {
     if (!mounted) return;
     const now   = new Date();
-    const start = new Date(now); start.setHours(0, 9, 0, 0);
-    const end   = new Date(now); end.setHours(0, 55, 0, 0);
+    const start = new Date(now); start.setHours(10, 9, 0, 0);
+    const end   = new Date(now); end.setHours(10, 55, 0, 0);
 
     function update() {
       const n = new Date();
