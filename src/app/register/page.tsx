@@ -29,15 +29,15 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Registration window: starts today 00:00 and ends 7 days later at 23:59
+  // Registration window: starts today 00:00 and ends 15 days later at 23:59
   useEffect(() => {
     if (!mounted) return;
     const now = new Date();
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
     const end = new Date(now);
-    end.setDate(end.getDate() + 5);
-    end.setHours(0, 38, 59, 999);
+    end.setDate(end.getDate() + 15);
+    end.setHours(23, 59, 59, 999);
 
     function updateTimer() {
       const n = new Date();

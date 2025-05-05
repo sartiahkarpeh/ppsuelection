@@ -56,7 +56,7 @@ export default function VerificationComponent() {
           You’ve successfully verified your email for the African Students Election at P P Savani University.
         </p>
         <p className="mb-6">
-          🗓️ The election will take place on <strong>May 15, 2025</strong>.
+          🗓️ The election will take place on <strong>May 25, 2025</strong>.
           On that day you’ll receive an email containing your Voting Card and a secure link to cast your ballot.
         </p>
         <p className="text-gray-600">
