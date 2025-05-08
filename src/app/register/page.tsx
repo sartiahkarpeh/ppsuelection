@@ -6,6 +6,24 @@ import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
   const router = useRouter();
+
+  // Show instructions alert on first load
+  useEffect(() => {
+    alert(
+      `📝 Welcome to the registration portal. Please follow these steps to register successfully:\n\n` +
+      `1. Enter your full name exactly as on your student ID\n` +
+      `2. Upload a clear and decent PASSPORT SIZE picture of you\n` +
+      `3. Provide your University ID (e.g., 22se02ml120) to auto-fill your email\n` +
+      `4. Enter your course of study\n` +
+      `5. Provide your phone number\n` +
+      `6. Select your date of birth, you MUST be 18yrs and above\n` +
+      `7. After you hit register, kindly wait for the next page to load - where you would be asked to verify your email\n` +
+      `8. To verify your email, a 6 digit code will be sent to your university email (SPAM FOLDER), copy and paste the code to get your email verified\n` +
+      `9. After you have verified your email, you will see a VERIFICATION COMPLETE! Message, after that, you are done!\n\n` +
+      `In the event where you are still encountering any any of error while registering, kindly contact the IEC Chairman, Sartiah Karpeh on Whatsapp at +231880229716 or call directly on +919502670249`
+    );
+  }, []);
+
   const [formData, setFormData] = useState({
     fullName: '',
     photoUrl: '',
@@ -29,15 +47,15 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Registration window: starts today 00:00 and ends 15 days later at 23:59
+  // Registration window: starts today 00:00 and ends 12 days later at 00:00
   useEffect(() => {
     if (!mounted) return;
     const now = new Date();
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
     const end = new Date(now);
-    end.setDate(end.getDate() + 15);
-    end.setHours(23, 59, 59, 999);
+    end.setDate(end.getDate() + 12);
+    end.setHours(0, 0, 0, 999);
 
     function updateTimer() {
       const n = new Date();
