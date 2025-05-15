@@ -141,13 +141,14 @@ export default function AdminPanelPage() {
     }
   };
   const handleDeleteVoter = async (id: string, name: string) => {
-    if (!confirm(Delete voter "${name}"?)) return;
-    await fetch(/api/admin/voters/${id}, { method: 'DELETE', credentials: 'include' });
+    if (!confirm(`Delete voter "${name}"?`)) return;
+    await fetch(`/api/admin/voters/${id}`, { method: 'DELETE', credentials: 'include' });
     loadData();
   };
+  
   const handleDeleteCandidate = async (id: string, name: string) => {
-    if (!confirm(Delete candidate "${name}"?)) return;
-    await fetch(/api/admin/candidates/${id}, { method: 'DELETE', credentials: 'include' });
+    if (!confirm(`Delete candidate "${name}"?`)) return;
+    await fetch(`/api/admin/candidates/${id}`, { method: 'DELETE', credentials: 'include' });
     loadCandidates();
   };
   const handleEditCandidate = async (
@@ -164,7 +165,7 @@ export default function AdminPanelPage() {
     const position = prompt('Position:', currentPosition);
     if (position === null) return;
     try {
-      const res = await fetch(/api/admin/candidates/${id}, {
+      const res = await fetch(`/api/admin/candidates/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -192,7 +193,7 @@ export default function AdminPanelPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      await fetch(/api/admin/candidates/${id}, {
+      await fetch(`/api/admin/candidates/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
