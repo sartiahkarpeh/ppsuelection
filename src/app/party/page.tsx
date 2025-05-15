@@ -14,7 +14,8 @@ interface LiveVote {
 const POSITION_PRIORITY = [
   'President',
   'Vice President',
-  'Secretary',
+  'Secretary General',
+  'Assistant Secretary',
   'Treasurer',
   'Chaplain',
   'Chair',
@@ -105,4 +106,3 @@ export default function PartyDashboardPage() {
     </div>
   );
 }
-

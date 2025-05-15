@@ -42,7 +42,8 @@ export async function GET() {
   const POSITION_PRIORITY = [
     'President',
     'Vice President',
-    'Secretary',
+    'Secretary General',
+    'Assistant Secretary',
     'Treasurer',
     'Chaplain',
     'Chair',
@@ -153,4 +154,3 @@ export async function GET() {
     },
   });
 }
-

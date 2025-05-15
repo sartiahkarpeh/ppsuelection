@@ -54,7 +54,7 @@ export default function RegisterPage() {
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
     const end = new Date(now);
-    end.setDate(end.getDate() + 12);
+    end.setDate(end.getDate() -5);
     end.setHours(0, 0, 0, 999);
 
     function updateTimer() {

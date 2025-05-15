@@ -1,4 +1,3 @@
-// src/app/party/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -22,60 +21,13 @@ const POSITION_PRIORITY = [
 
 export default function PartyDashboardPage() {
   const [liveVotes, setLiveVotes] = useState<LiveVote[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Live timer
-  const [countdown, setCountdown] = useState<string>('');
-  const [mounted, setMounted] = useState(false);
-  const [votingOpen, setVotingOpen] = useState(false);
-
-  // mark mounted
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Voting window: starts 23:45, ends 23:55
-  useEffect(() => {
-    if (!mounted) return;
-
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(10, 13, 0, 0);
-    const end = new Date(now);
-    end.setHours(10, 55, 0, 0);
-
-    function updateTimer() {
-      const n = new Date();
-      if (n < start) {
-        setVotingOpen(false);
-        const diff = start.getTime() - n.getTime();
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setCountdown(`Voting starts in ${h}h ${m}m ${s}s`);
-      } else if (n <= end) {
-        setVotingOpen(true);
-        const diff = end.getTime() - n.getTime();
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${h}h ${m}m ${s}s remaining`);
-      } else {
-        setVotingOpen(false);
-        setCountdown('Voting has closed');
-      }
-    }
-
-    updateTimer();
-    const tid = setInterval(updateTimer, 1000);
-    return () => clearInterval(tid);
-  }, [mounted]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
 
   const loadLiveVotes = async () => {
     try {
       setError(null);
-      const res = await fetch('/api/vote/live');
+      const res = await fetch('/api/vote/live', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load live votes');
       setLiveVotes(await res.json());
     } catch (e: any) {
@@ -98,13 +50,12 @@ export default function PartyDashboardPage() {
     ...positionTitles
       .filter(t => POSITION_PRIORITY.includes(t))
       .sort((a, b) => POSITION_PRIORITY.indexOf(a) - POSITION_PRIORITY.indexOf(b)),
-    ...positionTitles.filter(t => !POSITION_PRIORITY.includes(t)),
+    ...positionTitles.filter(t => !POSITION_PRIORITY.includes(t))
   ];
 
   return (
     <div className="max-w-xl mx-auto p-6 bg-white rounded-2xl shadow-md mt-12">
-      <h1 className="text-3xl font-bold mb-4 text-center">Live Vote Results</h1>
-      <p className="text-sm text-gray-600 mb-6 text-center">{mounted ? countdown : ''}</p>
+      <h1 className="text-3xl font-bold mb-6 text-center">Live Vote Results</h1>
 
       {loading ? (
         <p>Loading…</p>
