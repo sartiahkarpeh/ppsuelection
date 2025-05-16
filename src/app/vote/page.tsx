@@ -29,8 +29,9 @@ export default function VotePage() {
   const POSITION_PRIORITY = [
   'President',
   'Vice President',
-  'Secretary General',
+  'General Secretary',
   'Assistant Secretary',
+  'Financial Secretary',
   'Treasurer',
   'Chaplain',
   'Chair',
@@ -54,7 +55,7 @@ export default function VotePage() {
     if (!mounted) return;
     const now   = new Date();
     const start = new Date(now); start.setHours(10, 9, 0, 0);
-    const end   = new Date(now); end.setHours(11, 0, 0, 0);
+    const end   = new Date(now); end.setHours(11, 50, 0, 0);
 
     function update() {
       const n = new Date();
