@@ -57,7 +57,7 @@ export default function VotePage() {
     if (!mounted) return;
     const now   = new Date();
     const start = new Date(now); start.setHours(10, 9, 0, 0);
-    const end   = new Date(now); end.setHours(12, 50, 0, 0);
+    const end   = new Date(now); end.setHours(16, 50, 0, 0);
 
     function update() {
       const n = new Date();
