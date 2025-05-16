@@ -27,13 +27,13 @@ export default function VotePage() {
 
   // Priority (unchanged)
   const POSITION_PRIORITY = [
-    'President', 
-    'Vice President', 
-    'General Secretary', 
-    'Assistant Secretary',
-    'Treasurer', 
-    'Chaplain', 
-    'Chair',
+  'President',
+  'Vice President',
+  'Secretary General',
+  'Assistant Secretary',
+  'Treasurer',
+  'Chaplain',
+  'Chair',
   ];
 
   // Retrieve the same key we set on login

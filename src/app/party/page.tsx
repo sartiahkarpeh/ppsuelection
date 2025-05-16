@@ -14,8 +14,9 @@ interface LiveVote {
 const POSITION_PRIORITY = [
   'President',
   'Vice President',
-  'Secretary General',
+  'General Secretary',
   'Assistant Secretary',
+  'Financial Secretary',
   'Treasurer',
   'Chaplain',
   'Chair',
