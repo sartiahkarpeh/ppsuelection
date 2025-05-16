@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 interface Candidate {
   id: string;
@@ -25,19 +26,17 @@ export default function VotePage() {
   const [mounted, setMounted]       = useState(false);
   const [votingOpen, setVotingOpen] = useState(false);
 
-  // Priority (unchanged)
   const POSITION_PRIORITY = [
-  'President',
-  'Vice President',
-  'General Secretary',
-  'Assistant Secretary',
-  'Financial Secretary',
-  'Treasurer',
-  'Chaplain',
-  'Chair',
+    'President',
+    'Vice President',
+    'General Secretary',
+    'Assistant Secretary',
+    'Financial Secretary',
+    'Treasurer',
+    'Chaplain',
+    'Chair',
   ];
 
-  // Retrieve the same key we set on login
   const token = typeof window !== 'undefined'
     ? localStorage.getItem('voter_token')
     : null;
@@ -47,15 +46,13 @@ export default function VotePage() {
     router.push('/login');
   };
 
-  // mark as mounted
   useEffect(() => { setMounted(true); }, []);
 
-  // Voting window timer
   useEffect(() => {
     if (!mounted) return;
     const now   = new Date();
     const start = new Date(now); start.setHours(10, 9, 0, 0);
-    const end   = new Date(now); end.setHours(11, 50, 0, 0);
+    const end   = new Date(now); end.setHours(12, 50, 0, 0);
 
     function update() {
       const n = new Date();
@@ -84,7 +81,6 @@ export default function VotePage() {
     return () => clearInterval(tid);
   }, [mounted]);
 
-  // Fetch, sort & set positions
   const loadCandidates = () => {
     setError(null);
     fetch('/api/candidates')
@@ -106,7 +102,6 @@ export default function VotePage() {
       .catch(err => setError(err.message || 'Failed to load candidates.'));
   };
 
-  // Auth guard + load
   useEffect(() => {
     if (!token) {
       router.push('/login');
@@ -115,13 +110,13 @@ export default function VotePage() {
     loadCandidates();
   }, [token, router]);
 
-  // ——— one radio group per position ———
   const handleSelection = (positionId: string, candidateId: string) => {
     const updated = { ...selections, [positionId]: candidateId };
     setSelections(updated);
     sessionStorage.setItem('selections', JSON.stringify(updated));
   };
 
+  // ✅ ✅ ✅ NEW: VOTE FUNCTION THAT SAVES TO SUPABASE
   const handleVote = async () => {
     if (!votingOpen) {
       setError('Voting is not open at this time.');
@@ -131,31 +126,34 @@ export default function VotePage() {
       setError('Please select at least one candidate.');
       return;
     }
-    if (!confirm("Confirm your selections?")) return;
+    if (!confirm('Confirm your selections?')) return;
 
     setLoading(true);
     setError(null);
+
     try {
-      const res = await fetch('/api/vote', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ selections }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Vote failed');
+      const voterId = token; // Your token matches Voter.voterId
+      const timestamp = new Date().toISOString();
+
+      const voteRecords = Object.entries(selections).map(([positionId, candidateId]) => ({
+        voterId,
+        candidateId,
+        timestamp,
+      }));
+
+      const { error } = await supabase.from('Vote').insert(voteRecords);
+
+      if (error) throw new Error(error.message);
+
       setHasVoted(true);
       sessionStorage.removeItem('selections');
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || 'Vote failed.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Avoid SSR mismatch
   if (!token && typeof window !== 'undefined') return null;
 
   return (
