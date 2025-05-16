@@ -27,8 +27,13 @@ export default function VotePage() {
 
   // Priority (unchanged)
   const POSITION_PRIORITY = [
-    'President', 'Vice President', 'Secretary',
-    'Treasurer', 'Chaplain', 'Chair',
+    'President', 
+    'Vice President', 
+    'General Secretary', 
+    'Assistant Secretary',
+    'Treasurer', 
+    'Chaplain', 
+    'Chair',
   ];
 
   // Retrieve the same key we set on login
@@ -49,7 +54,7 @@ export default function VotePage() {
     if (!mounted) return;
     const now   = new Date();
     const start = new Date(now); start.setHours(10, 9, 0, 0);
-    const end   = new Date(now); end.setHours(10, 55, 0, 0);
+    const end   = new Date(now); end.setHours(11, 0, 0, 0);
 
     function update() {
       const n = new Date();
