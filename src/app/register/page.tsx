@@ -37,6 +37,10 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+
+// Presuming this is part of a React component
+// function YourComponent() { // Example component structure
+
   // Timer state
   const [countdown, setCountdown] = useState<string>('');
   const [mounted, setMounted] = useState(false);
@@ -47,44 +51,89 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Registration window: starts today 00:00 and ends 12 days later at 00:00
+  // Registration window
   useEffect(() => {
     if (!mounted) return;
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(now);
-    end.setDate(end.getDate() +5);
-    end.setHours(0, 0, 0, 0);
+
+    // --- SET THE FIXED END DATE AND TIME (IST) ---
+    // Month is 0-indexed, so 4 = May
+    // This will be interpreted in the user's local timezone.
+    // If the user is in IST, this represents May 20, 2025, 23:59:59 IST.
+    const end = new Date(2025, 4, 20, 23, 59, 59);
+
+    // --- Determine the Start Date ---
+    // For this example, we'll assume registration started today at midnight.
+    // If you have a specific historical start date, use that instead.
+    // If registration is simply "ongoing", `start` can be set to a past date.
+    const nowForStart = new Date(); // Use a 'now' to define the start relative to current day if needed
+    const start = new Date(nowForStart);
+    start.setHours(0, 0, 0, 0); // Defaulting to start of today for "Registration starts in" logic
+                                  // If registration has been open for a while, set 'start' to that actual past date.
+                                  // For example: const start = new Date(2025, 4, 10, 0, 0, 0); // If it started May 10th
+
+    // Log the initialized start and end dates for verification
+    console.log("Timer Initialized (times are in your browser's local timezone):");
+    console.log("Start Date:", start.toLocaleString());
+    console.log("End Date:", end.toLocaleString(), "(Target: May 20, 2025, 23:59:59 IST)");
+
 
     function updateTimer() {
-      const n = new Date();
+      const n = new Date(); // Current moment for each tick
+
       if (n < start) {
         setRegistrationOpen(false);
         const diff = start.getTime() - n.getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-        const mins = Math.floor((diff / (1000 * 60)) % 60);
-        const secs = Math.floor((diff / 1000) % 60);
-        setCountdown(`Registration starts in ${days}d ${hours}h ${mins}m ${secs}s`);
-      } else if (n <= end) {
+        // Ensure diff is not negative if start is in the past due to configuration
+        if (diff <= 0) {
+            // Fall through to "n <= end" logic if start time has passed
+        } else {
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const mins = Math.floor((diff / (1000 * 60)) % 60);
+            const secs = Math.floor((diff / 1000) % 60);
+            setCountdown(`Registration starts in ${days}d ${hours}h ${mins}m ${secs}s`);
+            return; // Exit here to prevent falling into the next block
+        }
+      }
+      
+      // This block will now execute if n >= start
+      if (n <= end) {
         setRegistrationOpen(true);
         const diff = end.getTime() - n.getTime();
+
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
         const mins = Math.floor((diff / (1000 * 60)) % 60);
         const secs = Math.floor((diff / 1000) % 60);
+
+        // --- DEBUG LOG for "until close" phase ---
+        console.log(
+          `REG ENDS IN --- Current Time: ${n.toLocaleString()}\n` +
+          `Diff (ms): ${diff}\n` +
+          `Calculated: Days=${days}, Hours=${hours}, Mins=${mins}, Secs=${secs}`
+        );
+        // --- END DEBUG LOG ---
+
         setCountdown(`${days}d ${hours}h ${mins}m ${secs}s until close`);
       } else {
         setRegistrationOpen(false);
         setCountdown('Registration has closed');
+        console.log("Registration has officially closed according to timer.");
+        // clearInterval(tid); // Already handled by effect cleanup, but can be explicit if needed
       }
     }
 
-    updateTimer();
+    updateTimer(); // Call once immediately
     const tid = setInterval(updateTimer, 1000);
-    return () => clearInterval(tid);
+
+    return () => {
+      clearInterval(tid);
+      console.log("Timer interval cleared.");
+    };
   }, [mounted]);
+
+  // return (<div>{countdown}</div>); // Example usage
+// }
 
   // Handle input changes, auto-fill email
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
