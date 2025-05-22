@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 // This is the component containing all the client-side logic
 export default function VerificationComponent() {
   const params = useSearchParams();
-  const voterId = params.get('voterId') || '';
+  const voterId = params?.get('voterId') ?? '';
 
   const [emailCode, setEmailCode] = useState('');
   const [stage, setStage] = useState<'entry' | 'done'>('entry');

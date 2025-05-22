@@ -215,7 +215,7 @@ export default function AdminPanelPage() {
   // ─── NEW: Send Debate Link ───────────────────────────────────────────────────
   const handleSendDebate = async () => {
     try {
-      const res = await fetch('/api/admin/send-debate-link', {
+      const res = await fetch('/pages/api/admin/send-debate-link', {
         method: 'POST',
         credentials: 'include'
       });
