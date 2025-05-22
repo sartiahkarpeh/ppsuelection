@@ -5,7 +5,8 @@ import jwt              from 'jsonwebtoken';
 import { cookies }      from 'next/headers';
 import nodemailer       from 'nodemailer';
 import pLimit           from 'p-limit';
-import * as nodemailerSendgrid from 'nodemailer-sendgrid'; // Import SendGrid transport
+
+const nodemailerSendgridTransport = require('nodemailer-sendgrid-transport');
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,32 +28,34 @@ if (!sendgridApiKey) {
 } else if (!VERIFIED_SENDER_EMAIL) {
     moduleTransporterInitializationError = "CRITICAL: VERIFIED_SENDER_EMAIL is not set in the code!";
     console.error(moduleTransporterInitializationError);
-}
- else {
+} else {
     try {
         moduleTransporter = nodemailer.createTransport(
-            nodemailerSendgrid({ // Use SendGrid transport
+            nodemailerSendgridTransport({ // CORRECTED USAGE
                 apiKey: sendgridApiKey
             })
         );
-        // Optional: Verify. SendGrid transport might not strictly need explicit verify like SMTP.
-        // For now, we'll assume it's okay if the API key is present.
-        // If you want to verify:
-        /*
-        moduleTransporter.verify().then(() => {
-            console.log('SendGrid Connection Verified Successfully at module load.');
-        }).catch(err => {
-            let verifyErrorMessage = "Unknown SendGrid verification error";
-            if (err instanceof Error) {
-                verifyErrorMessage = err.message;
-            } else if (typeof err === 'string') {
-                verifyErrorMessage = err;
-            }
-            console.error(`SendGrid verification at module load failed: ${verifyErrorMessage}`, err);
-            // Note: Even if verify fails here, sendMail might still work if API key is valid.
-        });
-        */
        console.log('SendGrid transporter configured.');
+       // Optional: Verify. SendGrid transport might not strictly need explicit verify like SMTP.
+       // You can test by actually sending an email.
+       // If you want to add a verify call (its behavior might differ from SMTP verify):
+       /*
+       if (moduleTransporter && typeof moduleTransporter.verify === 'function') {
+            moduleTransporter.verify().then(() => {
+                console.log('SendGrid Connection Seems OK (verify called).');
+            }).catch(err => {
+                let verifyErrorMessage = "Unknown SendGrid verification error";
+                if (err instanceof Error) {
+                    verifyErrorMessage = err.message;
+                } else if (typeof err === 'string') {
+                    verifyErrorMessage = err;
+                }
+                console.error(`SendGrid verification during module load encountered an issue: ${verifyErrorMessage}`, err);
+            });
+       } else {
+            console.log("SendGrid transporter does not have a standard verify method or was not initialized.");
+       }
+       */
 
     } catch (error) {
         let errorMessage = "An unknown error occurred creating SendGrid transporter.";
@@ -112,11 +115,12 @@ export async function POST() {
     }
     console.log(`Found ${allVoters.length} voters in total.`);
 
-    // Configuration for sending with SendGrid - can be more generous than Gmail
-    // but still mindful of Netlify's typical ~10s timeout for synchronous functions.
+    // Configuration for sending with SendGrid - still mindful of Netlify's typical ~10s timeout.
+    // If 135 emails still exceed this, you MUST process fewer voters per invocation
+    // or use Netlify Background Functions for longer execution times.
     const SUB_BATCH_SIZE = 20; // Number of emails to process in each internal sub-batch
     const DELAY_BETWEEN_SUB_BATCHES_MS = 500; // 0.5 seconds delay between sub-batches
-    const CONCURRENT_SEND_LIMIT = 8;      // SendGrid can handle more concurrency
+    const CONCURRENT_SEND_LIMIT = 8; // SendGrid can handle more concurrency
 
     const emailLimiter = pLimit(CONCURRENT_SEND_LIMIT);
     let totalSuccess = 0;
@@ -124,13 +128,16 @@ export async function POST() {
     let votersProcessed = 0;
 
     for (let i = 0; i < allVoters.length; i += SUB_BATCH_SIZE) {
+        // Check if function is nearing timeout (example, Netlify timeout is 10s, give 2s buffer)
+        // This is a simplistic check and might need adjustment based on Netlify's actual behavior
+        // For more accurate timeout handling, this would be more complex.
+        // For now, we rely on SendGrid being fast enough for the batches.
+
         const subBatch = allVoters.slice(i, i + SUB_BATCH_SIZE);
         console.log(`Processing sub-batch ${Math.floor(i / SUB_BATCH_SIZE) + 1}: ${subBatch.length} voters (starting with ${subBatch[0]?.email}).`);
 
         const emailPromises = subBatch.map(voter =>
             emailLimiter(async () => {
-                // Optional small delay before each individual email if needed, but pLimit handles concurrency
-                // await new Promise(resolve => setTimeout(resolve, 100));
                 console.log(`Attempting to send email to: ${voter.email} via SendGrid`);
                 try {
                     const info = await transporter.sendMail({
@@ -139,21 +146,22 @@ export async function POST() {
                         subject: 'Live Debate Link - May 23, 2025',
                         text: `Hello ${voter.fullName},\n\nOur live online debate is scheduled for tomorrow, May 23, 2025, at 2:00 PM.\n\nJoin the debate using this link:\n${ZOOM_LINK}\n\nWe look forward to your participation.\n\n—IEC Team`
                     });
-                    // SendGrid info might just be a success indicator or an x-message-id header
                     console.log(`Email sent successfully to: ${voter.email}, SendGrid Response: ${info.response || JSON.stringify(info)}`);
                     return { status: 'fulfilled' as const, email: voter.email };
                 } catch (sendError) {
                     const err = sendError as Error & { code?: number; response?: any; responseBody?: any; errors?: {message: string}[] };
                     let detailedMessage = err.message;
-                    if (err.errors && err.errors.length > 0) { // SendGrid often returns detailed errors in an array
+                    if (err.errors && err.errors.length > 0) {
                         detailedMessage = err.errors.map(e => e.message).join(', ');
-                    } else if (err.responseBody) { // Sometimes errors are in responseBody
+                    } else if (err.responseBody) {
                         try {
-                            const body = JSON.parse(err.responseBody.toString());
+                            // Ensure responseBody is a string or buffer before calling toString()
+                            const bodyString = (typeof err.responseBody.toString === 'function') ? err.responseBody.toString() : JSON.stringify(err.responseBody);
+                            const body = JSON.parse(bodyString);
                             if (body.errors && body.errors.length > 0) {
                                 detailedMessage = body.errors.map((e: {message: string}) => e.message).join(', ');
                             }
-                        } catch (parseError) { /* ignore if not json */ }
+                        } catch (parseError) { /* ignore if not json or cannot be stringified */ }
                     }
                     console.error(`Failed to send email to: ${voter.email}, Reason: ${detailedMessage}`, err);
                     return { status: 'rejected' as const, email: voter.email, message: detailedMessage, reason: err.toString() };
@@ -185,7 +193,6 @@ export async function POST() {
     const finalMessage = `All ${allVoters.length} voters processed using SendGrid. Total successful emails: ${totalSuccess}. Total failures: ${overallFailures.length}.`;
     console.log(finalMessage);
     if (overallFailures.length > 0) {
-        // Log simplified failures to avoid overly verbose logs for the entire error object
         console.error("Overall Failures (SendGrid):", JSON.stringify(overallFailures.map(f => ({email: f.email, message: f.message})), null, 2));
     }
     console.log(`Function invocation ended at: ${new Date().toISOString()}`);
@@ -200,7 +207,6 @@ export async function POST() {
         totalAttempted: allVoters.length,
         totalSuccess,
         totalFailures: overallFailures.length,
-        // Send simplified failures in the response
         failures: overallFailures.map(f => ({email: f.email, message: f.message}))
     }, { status: statusCode });
 }
