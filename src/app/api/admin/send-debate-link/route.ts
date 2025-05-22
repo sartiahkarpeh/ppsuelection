@@ -4,20 +4,21 @@ import { prisma }       from '@/lib/prisma';
 import jwt              from 'jsonwebtoken';
 import { cookies }      from 'next/headers';
 import pLimit           from 'p-limit';
-import sgMail           from '@sendgrid/mail'; // Import @sendgrid/mail
+import sgMail           from '@sendgrid/mail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const functionStartTime = Date.now(); // Track start time for approximate duration check
 
 // Environment Variables
 const JWT_SECRET = process.env.JWT_SECRET!;
 const ZOOM_LINK  = process.env.ZOOM_LINK!;
 const sendgridApiKey = process.env.SENDGRID_API_KEY;
-const NETLIFY_FUNCTION_TIMEOUT_SECONDS = parseInt(process.env.NETLIFY_FUNCTION_TIMEOUT_SECONDS || "9", 10); // Assume 9s to be safe, or set env var
+// Default to 9s for safety if timeout env var isn't set, Netlify standard API routes are often 10s.
+// For longer, you need background functions or specific plan configurations.
+const NETLIFY_FUNCTION_TIMEOUT_SECONDS = parseInt(process.env.NETLIFY_FUNCTION_TIMEOUT_SECONDS || "9", 10);
 
-const VERIFIED_SENDER_EMAIL = 'iecppsu85@gmail.com';
+// This should be your SendGrid verified single sender email address
+const VERIFIED_SENDER_EMAIL = 'iecppsu85@gmail.com'; // Make sure this matches your verified sender
 
 let sendgridInitialized = false;
 let sendgridInitializationError: string | null = null;
@@ -33,35 +34,66 @@ if (!sendgridApiKey) {
         sgMail.setApiKey(sendgridApiKey);
         sendgridInitialized = true;
         console.log('@sendgrid/mail configured with API key.');
-    } catch (error) { /* ... (same error handling as before) ... */ }
+    } catch (error) {
+        let errorMessage = "An unknown error occurred configuring @sendgrid/mail.";
+        if (error instanceof Error) {
+            errorMessage = `Error configuring @sendgrid/mail: ${error.message}`;
+        } else if (typeof error === 'string') {
+            errorMessage = `Error configuring @sendgrid/mail: ${error}`;
+        }
+        sendgridInitializationError = errorMessage;
+        console.error(sendgridInitializationError, error);
+    }
 }
 
 export async function POST() {
     const invocationStartTime = Date.now();
     console.log(`Function invocation started at: ${new Date(invocationStartTime).toISOString()}`);
 
-    if (sendgridInitializationError || !sendgridInitialized) { /* ... (same error handling) ... */ }
+    if (sendgridInitializationError || !sendgridInitialized) {
+        const errorMsg = sendgridInitializationError || "SendGrid mail client not initialized (unexpected state).";
+        console.error("Responding with 500 due to SendGrid client initialization error:", errorMsg);
+        return NextResponse.json({ error: `Mail client not initialized: ${errorMsg}` }, { status: 500 });
+    }
 
     const token = cookies().get('admin_token');
-    if (!token) { /* ... (auth logic) ... */ }
-    try { jwt.verify(token.value, JWT_SECRET); }
-    catch (jwtError) { /* ... (auth logic) ... */ }
+    if (!token) {
+        console.log("Unauthorized: No admin token found.");
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); // Ensures exit if token is not found
+    }
 
-    if (!ZOOM_LINK) { /* ... (config check) ... */ }
+    try {
+        jwt.verify(token.value, JWT_SECRET); // 'token.value' is safe here
+    } catch (jwtError) {
+        let message = "Invalid token";
+        if (jwtError instanceof Error) {
+            message = `Invalid token: ${jwtError.message}`;
+        }
+        console.log(message, jwtError);
+        return NextResponse.json({ error: 'Invalid token' }, { status: 401 }); // Ensures exit on invalid token
+    }
+
+    if (!ZOOM_LINK) {
+        console.error("ZOOM_LINK environment variable is not set.");
+        return NextResponse.json({ error: 'Server configuration error: Missing Zoom link.' }, { status: 500 });
+    }
 
     console.log("Fetching all voters...");
     const allVoters = await prisma.voter.findMany({
-        select: { email: true, fullName: true } // Consider adding an orderBy clause for consistency
-        // orderBy: { id: 'asc' } // Example: if you have an auto-incrementing ID
+        select: { email: true, fullName: true },
+        // orderBy: { id: 'asc' } // Optional: Add consistent ordering
     });
 
-    if (allVoters.length === 0) { /* ... (no voters logic) ... */ }
+    if (allVoters.length === 0) {
+        console.log("No voters found in the database.");
+        return NextResponse.json({ message: "No voters found to send emails to.", failures: [], totalAttempted: 0, totalSuccess: 0 }, { status: 200 });
+    }
     console.log(`Found ${allVoters.length} voters in total.`);
 
-    // Aggressive Configuration for SendGrid - try to complete within ~9-10 seconds
-    const SUB_BATCH_SIZE = 15; // Smaller sub-batches, more loops, but each loop is faster
-    const DELAY_BETWEEN_SUB_BATCHES_MS = 100; // Very short delay, almost negligible
-    const CONCURRENT_SEND_LIMIT = 10;     // Higher concurrency for SendGrid API calls
+    // Aggressive Configuration for SendGrid
+    const SUB_BATCH_SIZE = 15;
+    const DELAY_BETWEEN_SUB_BATCHES_MS = 100;
+    const CONCURRENT_SEND_LIMIT = 10;
 
     const emailLimiter = pLimit(CONCURRENT_SEND_LIMIT);
     let totalSuccess = 0;
@@ -69,11 +101,10 @@ export async function POST() {
     let votersProcessed = 0;
 
     for (let i = 0; i < allVoters.length; i += SUB_BATCH_SIZE) {
-        // Check elapsed time - simple check
         const elapsedTimeSeconds = (Date.now() - invocationStartTime) / 1000;
-        if (elapsedTimeSeconds > NETLIFY_FUNCTION_TIMEOUT_SECONDS - 2) { // Leave 2s buffer
-            console.warn(`Approaching timeout (${elapsedTimeSeconds}s / ${NETLIFY_FUNCTION_TIMEOUT_SECONDS}s). Stopping email processing to allow graceful exit.`);
-            break; // Exit the loop
+        if (elapsedTimeSeconds > NETLIFY_FUNCTION_TIMEOUT_SECONDS - 2) { // 2-second buffer
+            console.warn(`Approaching timeout (${elapsedTimeSeconds.toFixed(1)}s / ${NETLIFY_FUNCTION_TIMEOUT_SECONDS}s). Stopping email processing to allow graceful exit.`);
+            break;
         }
 
         const subBatch = allVoters.slice(i, i + SUB_BATCH_SIZE);
@@ -81,23 +112,40 @@ export async function POST() {
 
         const emailPromises = subBatch.map(voter =>
             emailLimiter(async () => {
-                // No individual delay here, rely on pLimit and fast SendGrid API
-                const msg = { /* ... (same msg object as before, using VERIFIED_SENDER_EMAIL and ZOOM_LINK) ... */ };
-                msg.to = voter.email;
-                msg.from = { email: VERIFIED_SENDER_EMAIL, name: "IEC Voting" };
-                msg.subject = 'Live Debate Link - May 23, 2025';
-                msg.text = `Hello ${voter.fullName},\n\nOur live online debate is scheduled for tomorrow, May 23, 2025, at 2:00 PM.\n\nJoin the debate using this link:\n${ZOOM_LINK}\n\nWe look forward to your participation.\n\n—IEC Team`;
-
+                const msg = {
+                    to: voter.email,
+                    from: {
+                        email: VERIFIED_SENDER_EMAIL,
+                        name: "IEC Voting"
+                    },
+                    subject: 'Live Debate Link - May 23, 2025',
+                    text: `Hello ${voter.fullName},\n\nOur live online debate is scheduled for tomorrow, May 23, 2025, at 2:00 PM.\n\nJoin the debate using this link:\n${ZOOM_LINK}\n\nWe look forward to your participation.\n\n—IEC Team`
+                };
                 try {
                     await sgMail.send(msg);
-                    // console.log(`Email sent successfully to: ${voter.email}`); // Reduce verbose logging for speed
+                    // console.log(`Email sent successfully to: ${voter.email}`); // Keep logging minimal in loop for speed
                     return { status: 'fulfilled' as const, email: voter.email };
-                } catch (sendError) { /* ... (same detailed error handling as before) ... */ }
+                } catch (sendError) {
+                    const err = sendError as Error & { response?: { body?: { errors?: {message: string}[] } } };
+                    let detailedMessage = err.message;
+                    if (err.response && err.response.body && err.response.body.errors && err.response.body.errors.length > 0) {
+                        detailedMessage = err.response.body.errors.map(e => e.message).join(', ');
+                    }
+                    console.error(`Failed to send email to: ${voter.email}, Reason: ${detailedMessage}`, err.response?.body || err);
+                    return { status: 'rejected' as const, email: voter.email, message: detailedMessage, reason: err.toString() };
+                }
             })
         );
 
         const results = await Promise.all(emailPromises);
-        results.forEach(r => { if (r.status === 'fulfilled') totalSuccess++; else overallFailures.push(r as any); });
+        results.forEach(r => {
+            if (r.status === 'fulfilled') {
+                totalSuccess++;
+            } else {
+                // Type assertion needed if 'r' could be 'fulfilled' type after filtering
+                overallFailures.push(r as { email: string; message: string; reason?: string; status: 'rejected' });
+            }
+        });
         votersProcessed += subBatch.length;
 
         console.log(`Sub-batch ${Math.floor(i / SUB_BATCH_SIZE) + 1} processed. Total sent so far: ${totalSuccess}/${votersProcessed}. Cumulative failures: ${overallFailures.length}.`);
@@ -109,21 +157,27 @@ export async function POST() {
 
     const finalMessage = `Processing finished. Attempted ${votersProcessed} of ${allVoters.length} voters. Total successful emails: ${totalSuccess}. Total failures: ${overallFailures.length}.`;
     console.log(finalMessage);
-    if (overallFailures.length > 0) { /* ... (log simplified failures) ... */ }
+    if (overallFailures.length > 0) {
+        console.error("Overall Failures (SendGrid):", JSON.stringify(overallFailures.map(f => ({email: f.email, message: f.message})), null, 2));
+    }
 
     const durationMs = Date.now() - invocationStartTime;
     console.log(`Function invocation took approximately ${durationMs / 1000} seconds.`);
     console.log(`Function invocation ended at: ${new Date().toISOString()}`);
 
-    // Determine status code based on whether all targeted voters were processed
     const allTargetedProcessed = votersProcessed === allVoters.length;
     let statusCode = 200;
-    if (!allTargetedProcessed && totalSuccess < allVoters.length) { // Didn't finish processing all, and not all were successful
-        statusCode = 206; // Partial Content
-    } else if (overallFailures.length > 0) {
-        statusCode = 207; // Multi-Status
-    } else if (totalSuccess === 0 && allVoters.length > 0) {
-        statusCode = 502; // Bad Gateway / All failed
+
+    if (!allTargetedProcessed && totalSuccess < allVoters.length && votersProcessed > 0) {
+        statusCode = 206; // Partial Content because loop was broken by timeout check
+    } else if (overallFailures.length > 0 && totalSuccess < votersProcessed) {
+        statusCode = 207; // Multi-Status (some sent, some failed within the processed batch)
+    } else if (totalSuccess === 0 && votersProcessed > 0) {
+        statusCode = 502; // All attempted in processed batch failed
+    } else if (allVoters.length === 0) {
+        statusCode = 200; // No voters to process
+    } else if (totalSuccess === votersProcessed && votersProcessed === allVoters.length) {
+        statusCode = 200; // All successfully processed
     }
 
 
