@@ -1,72 +1,70 @@
-import { NextResponse } from 'next/server'
-import { prisma }      from '@/lib/prisma'
-import { cookies }     from 'next/headers'
-import jwt             from 'jsonwebtoken'
-import nodemailer      from 'nodemailer'
+// src/app/api/admin/send-debate-link/route.ts
+import { NextResponse }           from 'next/server';
+import { prisma }                from '@/lib/prisma';
+import nodemailer                from 'nodemailer';
+import jwt                       from 'jsonwebtoken';
+import { cookies }               from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET!
+const JWT_SECRET = process.env.JWT_SECRET!;
+const ZOOM_LINK  = process.env.ZOOM_LINK;    // ← Make sure this is set on Netlify!
 
-// use your SMTP env vars here
+if (!ZOOM_LINK) {
+  console.error('❌ ZOOM_LINK env var not set!');
+}
+
+export const dynamic = 'force-dynamic';
+
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,
   port:   Number(process.env.SMTP_PORT),
   secure: false,
-  auth:   {
-    user: process.env.SMTP_USER!,
-    pass: process.env.SMTP_PASS!
-  },
-})
+  auth:   { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+});
 
-export async function POST(request: Request) {
-  // — auth guard —
-  const token = cookies().get('admin_token')
+export async function POST(req: Request) {
+  console.log('🟢 [send-debate-link] handler invoked');
+  // — auth guard (using cookie + JWT) —
+  const token = cookies().get('admin_token');
   if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    console.warn('⚠️ No admin_token cookie');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    jwt.verify(token.value, JWT_SECRET)
-  } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    jwt.verify(token.value, JWT_SECRET);
+  } catch (err) {
+    console.warn('⚠️ Invalid JWT:', err);
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
-  // parse body
-  let body: { zoomLink?: string }
+  if (!ZOOM_LINK) {
+    return NextResponse.json({ error: 'Server misconfiguration: missing ZOOM_LINK' }, { status: 500 });
+  }
+
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    const voters = await prisma.voter.findMany({
+      select: { email: true, fullName: true },
+    });
+
+    console.log(`📨 Sending debate link to ${voters.length} voters…`);
+    await Promise.all(
+      voters.map(v =>
+        transporter.sendMail({
+          from:    `"IEC Voting" <${process.env.SMTP_USER}>`,
+          to:      v.email,
+          subject: 'Join the Candidate Debate',
+          text:    `Hello ${v.fullName},\n\nPlease join our online debate scheduled for May 23, 2025 from 2pm onwards:\n${ZOOM_LINK}\n\nSee you there!`,
+        }).catch(e => {
+          console.error(`Mail error for ${v.email}:`, e);
+          // swallow per-voter errors so one failure doesn’t kill the whole batch
+        })
+      )
+    );
+
+    console.log('✅ Debate links sent.');
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    console.error('❌ [send-debate-link] failed:', e);
+    return NextResponse.json({ error: 'Failed to send debate link' }, { status: 500 });
   }
-  const { zoomLink } = body
-  if (!zoomLink) {
-    return NextResponse.json({ error: 'Missing zoomLink' }, { status: 400 })
-  }
-
-  // fetch all verified voters
-  const voters = await prisma.voter.findMany({
-    where: { verification: { verified: true } },
-    select: { fullName: true, email: true }
-  })
-
-  // send to each
-  await Promise.all(voters.map(v =>
-    transporter.sendMail({
-      from:    `"IEC Voting" <${process.env.SMTP_USER}>`,
-      to:      v.email,
-      subject: 'Join the Online Candidate Debate',
-      text: `
-Hello ${v.fullName},
-
-Please join us for the online candidate debate scheduled for May 23, 2025 from 2pm onwards:
-
-${zoomLink}
-
-Best regards,
-IEC Voting Team
-      `,
-    })
-  ))
-
-  return NextResponse.json({ success: true })
 }
-
 

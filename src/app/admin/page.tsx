@@ -213,25 +213,19 @@ export default function AdminPanelPage() {
   const handleExportVoters = () => window.location.href = '/api/admin/export-voters';
 
   // ─── NEW: Send Debate Link ───────────────────────────────────────────────────
-  const handleSendDebateLink = async () => {
-    const link = prompt('Enter Zoom meeting link:');
-    if (!link) return;
+  const handleSendDebate = async () => {
     try {
       const res = await fetch('/api/admin/send-debate-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ zoomLink: link }),
+        credentials: 'include'
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error);
-      }
-      alert('Debate link sent to all verified voters');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Unknown error');
+      alert('Debate link sent!');
     } catch (e: any) {
       alert(`Failed to send debate link: ${e.message}`);
     }
-  };
+  };  
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Initial load
@@ -305,7 +299,7 @@ export default function AdminPanelPage() {
             Export Results (PDF)
           </button>
           <button
-            onClick={handleSendDebateLink}
+            onClick={handleSendDebate}
             className="py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             Send Debate Link
