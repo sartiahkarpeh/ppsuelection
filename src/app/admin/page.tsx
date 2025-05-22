@@ -267,6 +267,7 @@ export default function AdminPanelPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded-2xl shadow-md mt-12">
+
       {/* HEADER ACTIONS */}
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-blue-800">
@@ -303,14 +304,12 @@ export default function AdminPanelPage() {
           >
             Export Results (PDF)
           </button>
-          {/* ─── NEW Send Debate Link Button ───────────────────────────────────────── */}
           <button
             onClick={handleSendDebateLink}
             className="py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
             Send Debate Link
           </button>
-          {/* ───────────────────────────────────────────────────────────────────────── */}
         </div>
       </header>
 
@@ -332,7 +331,149 @@ export default function AdminPanelPage() {
 
       <p className="text-sm text-gray-600 mb-4 text-right">Ends in: {countdown}</p>
 
-      {/* ... rest of your component stays unchanged ... */}
+      {/* REGISTERED VOTERS */}
+      <div className="overflow-auto mb-12">
+        <h2 className="text-xl font-semibold mb-4">Registered Voters</h2>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="py-2 px-4 border-b">Name</th>
+              <th className="py-2 px-4 border-b">University ID</th>
+              <th className="py-2 px-4 border-b">Email</th>
+              <th className="py-2 px-4 border-b">Verified</th>
+              <th className="py-2 px-4 border-b">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {voters.map(v => (
+              <tr key={v.id} className="hover:bg-gray-50">
+                <td className="py-2 px-4">{v.fullName}</td>
+                <td className="py-2 px-4">{v.universityId}</td>
+                <td className="py-2 px-4">{v.email}</td>
+                <td className="py-2 px-4">{v.verified ? '✅' : '❌'}</td>
+                <td className="py-2 px-4">
+                  <button
+                    onClick={() => handleDeleteVoter(v.id, v.fullName)}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* LIVE VOTE COUNTS */}
+      <section className="mt-12">
+        <h2 className="text-2xl font-semibold mb-4">Live Vote Counts</h2>
+        {lvLoading ? (
+          <p>Loading live votes…</p>
+        ) : lvError ? (
+          <p className="text-red-500">{lvError}</p>
+        ) : (
+          orderedLiveTitles.map(title => {
+            const group = liveVotes.filter(v => v.position.title === title);
+            return (
+              <div key={title} className="mb-8">
+                <h3 className="text-xl font-bold mb-2">{title}</h3>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="py-2 px-4 border-b">Photo</th>
+                      <th className="py-2 px-4 border-b">Candidate</th>
+                      <th className="py-2 px-4 border-b">Party</th>
+                      <th className="py-2 px-4 border-b">Votes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.map(c => (
+                      <tr key={c.id} className="hover:bg-gray-50">
+                        <td className="py-2 px-4">
+                          {c.photoUrl ? (
+                            <img
+                              src={c.photoUrl}
+                              alt={c.name}
+                              className="h-16 w-16 object-cover rounded-full"
+                            />
+                          ) : (
+                            <div className="h-16 w-16 bg-gray-200 rounded-full" />
+                          )}
+                        </td>
+                        <td className="py-2 px-4">{c.name}</td>
+                        <td className="py-2 px-4">{c.party ?? 'Independent'}</td>
+                        <td className="py-2 px-4">{c.votes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* CANDIDATE MANAGEMENT */}
+      <section className="mt-12">
+        <h2 className="text-2xl font-semibold mb-4">Manage Candidates</h2>
+        {cLoading ? (
+          <p>Loading candidates…</p>
+        ) : cError ? (
+          <p className="text-red-500">{cError}</p>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="py-2 px-4 border-b">Name</th>
+                <th className="py-2 px-4 border-b">Party</th>
+                <th className="py-2 px-4 border-b">Position</th>
+                <th className="py-2 px-4 border-b">Photo</th>
+                <th className="py-2 px-4 border-b">Upload New Photo</th>
+                <th className="py-2 px-4 border-b">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCandidates.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50">
+                  <td className="py-2 px-4">{c.name}</td>
+                  <td className="py-2 px-4">{c.party ?? 'Independent'}</td>
+                  <td className="py-2 px-4">{c.position}</td>
+                  <td className="py-2 px-4">
+                    {c.photoUrl ? (
+                      <img src={c.photoUrl} alt={c.name} className="h-16 w-16 object-cover rounded-full" />
+                    ) : (
+                      <span className="text-gray-500">No photo</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={onPhotoChange(c.id)}
+                      className="block"
+                    />
+                  </td>
+                  <td className="py-2 px-4 space-x-2">
+                    <button
+                      onClick={() => handleEditCandidate(c.id, c.name, c.party, c.position)}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCandidate(c.id, c.name)}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }
