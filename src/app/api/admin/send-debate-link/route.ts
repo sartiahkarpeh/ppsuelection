@@ -6,23 +6,20 @@ import { cookies }      from 'next/headers';
 import nodemailer       from 'nodemailer';
 import pLimit           from 'p-limit';
 
-export const runtime = 'nodejs'; // Ensures Node.js environment
-export const dynamic = 'force-dynamic'; // Ensures the function is run dynamically
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const ZOOM_LINK  = process.env.ZOOM_LINK!;
 
-// SMTP Configuration Variables
 const smtpHost = process.env.SMTP_HOST;
 const smtpPort = process.env.SMTP_PORT;
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
 
-// Declare transporter and error at module scope, potentially uninitialized
 let moduleTransporter: nodemailer.Transporter | null = null;
 let moduleTransporterInitializationError: string | null = null;
 
-// Initialize transporter if config is present
 if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
     moduleTransporterInitializationError = "CRITICAL: SMTP environment variables are missing!";
     console.error(moduleTransporterInitializationError);
@@ -31,47 +28,52 @@ if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
         moduleTransporter = nodemailer.createTransport({
             host: smtpHost,
             port: parseInt(smtpPort, 10),
-            secure: (smtpPort === "465"), // true for 465, false for 587 (STARTTLS)
+            secure: (smtpPort === "465"),
             auth: {
                 user: smtpUser,
                 pass: smtpPass,
             },
         });
 
-        // Asynchronously verify connection - this won't block module loading
-        // The POST function will rely on moduleTransporter being non-null
         moduleTransporter.verify().then(() => {
             console.log('SMTP Connection Verified Successfully at module load.');
         }).catch(err => {
-            // This error is logged but doesn't prevent moduleTransporter from being assigned
-            // The actual send operations will reveal if it's truly unusable
-            console.error(`SMTP verification at module load failed (will try sending anyway): ${err.message}`, err);
-            // You could set another flag here if verify() failing should halt all operations
+            // Type check for 'err' from verify()
+            let verifyErrorMessage = "Unknown SMTP verification error";
+            if (err instanceof Error) {
+                verifyErrorMessage = err.message;
+            } else if (typeof err === 'string') {
+                verifyErrorMessage = err;
+            }
+            console.error(`SMTP verification at module load failed (will try sending anyway): ${verifyErrorMessage}`, err);
         });
-    } catch (error) {
-        moduleTransporterInitializationError = `Error creating SMTP transporter: ${error.message}`;
-        console.error(moduleTransporterInitializationError, error);
-        moduleTransporter = null; // Ensure it's null if creation fails
+    } catch (error) { // 'error' here is 'unknown'
+        // ---- FIX IS HERE ----
+        if (error instanceof Error) {
+            moduleTransporterInitializationError = `Error creating SMTP transporter: ${error.message}`;
+        } else if (typeof error === 'string') {
+            moduleTransporterInitializationError = `Error creating SMTP transporter: ${error}`;
+        } else {
+            moduleTransporterInitializationError = `Error creating SMTP transporter: An unknown error occurred.`;
+        }
+        // ---- END FIX ----
+        console.error(moduleTransporterInitializationError, error); // Log the original error too
+        moduleTransporter = null;
     }
 }
 
+// ... (The rest of your POST function remains the same) ...
 export async function POST() {
     console.log(`Function invocation started at: ${new Date().toISOString()}`);
 
-    // Use the module-scoped transporter and error states
     if (moduleTransporterInitializationError) {
         console.error("Responding with 500 due to transporter initialization error:", moduleTransporterInitializationError);
         return NextResponse.json({ error: `SMTP Transporter not initialized: ${moduleTransporterInitializationError}` }, { status: 500 });
     }
     if (!moduleTransporter) {
-        // This case should ideally be caught by moduleTransporterInitializationError,
-        // but as a fallback:
         console.error("Responding with 500 because transporter is not available (unexpected state).");
         return NextResponse.json({ error: "SMTP Transporter is not available (unexpected state)." }, { status: 500 });
     }
-    // At this point, moduleTransporter is believed to be initialized.
-    // We'll use it directly. For TypeScript, it's good practice to assign it to a new const
-    // within this scope if you want to ensure it's not reassigned, but it's not strictly necessary here.
     const transporter = moduleTransporter;
 
 
@@ -82,8 +84,12 @@ export async function POST() {
     }
     try {
         jwt.verify(token.value, JWT_SECRET);
-    } catch (err) {
-        console.log("Invalid token.", err.message);
+    } catch (jwtError) { // Give a different name to avoid confusion
+        let message = "Invalid token";
+        if (jwtError instanceof Error) {
+            message = `Invalid token: ${jwtError.message}`;
+        }
+        console.log(message, jwtError);
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
@@ -115,20 +121,19 @@ export async function POST() {
             emailLimiter(async () => {
                 console.log(`Attempting to send email to: ${voter.email}`);
                 try {
-                    // Ensure smtpUser is available if used directly here
                     if (!smtpUser) throw new Error("SMTP user is not defined for 'from' field.");
-                    const info = await transporter.sendMail({ // Uses the 'transporter' const from POST scope
+                    const info = await transporter.sendMail({
                         from: `"IEC Voting" <${smtpUser}>`,
                         to: voter.email,
                         subject: 'Live Debate Link - May 23, 2025',
                         text: `Hello ${voter.fullName},\n\nOur live online debate is scheduled for tomorrow, May 23, 2025, at 2:00 PM.\n\nJoin the debate using this link:\n${ZOOM_LINK}\n\nWe look forward to your participation.\n\n—IEC Team`
                     });
                     console.log(`Email sent successfully to: ${voter.email}, Message ID: ${info.messageId}`);
-                    return { status: 'fulfilled' as const, email: voter.email }; // Added 'as const' for stricter typing
-                } catch (error) {
-                    const err = error as Error; // Type assertion
+                    return { status: 'fulfilled' as const, email: voter.email };
+                } catch (sendError) { // Changed variable name from 'error'
+                    const err = sendError as Error;
                     console.error(`Failed to send email to: ${voter.email}, Reason:`, err.message, err);
-                    return { status: 'rejected' as const, email: voter.email, message: err.message, reason: err }; // Added 'as const'
+                    return { status: 'rejected' as const, email: voter.email, message: err.message, reason: err };
                 }
             })
         );
@@ -155,13 +160,13 @@ export async function POST() {
     const finalMessage = `All ${allVoters.length} voters processed. Total successful emails: ${totalSuccess}. Total failures: ${overallFailures.length}.`;
     console.log(finalMessage);
     if (overallFailures.length > 0) {
-        console.error("Overall Failures:", JSON.stringify(overallFailures.map(f => ({email: f.email, message: f.message})), null, 2)); // Simplified failure logging
+        console.error("Overall Failures:", JSON.stringify(overallFailures.map(f => ({email: f.email, message: f.message})), null, 2));
     }
     console.log(`Function invocation ended at: ${new Date().toISOString()}`);
 
     const statusCode = (totalSuccess > 0 && totalSuccess < allVoters.length && overallFailures.length > 0) ? 207 :
-                       (totalSuccess === allVoters.length && allVoters.length > 0) ? 200 : // ensure allVoters > 0 for 200
-                       (allVoters.length === 0) ? 200 : // No voters, also OK
+                       (totalSuccess === allVoters.length && allVoters.length > 0) ? 200 :
+                       (allVoters.length === 0) ? 200 :
                        502;
 
     return NextResponse.json({
@@ -169,6 +174,6 @@ export async function POST() {
         totalAttempted: allVoters.length,
         totalSuccess,
         totalFailures: overallFailures.length,
-        failures: overallFailures.map(f => ({email: f.email, message: f.message})) // Send simplified failures
+        failures: overallFailures.map(f => ({email: f.email, message: f.message}))
     }, { status: statusCode });
 }
